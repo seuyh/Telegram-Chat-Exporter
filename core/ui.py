@@ -20,27 +20,57 @@ class AppUI:
     async def start(self):
         self.show_banner()
         while True:
-            print("\n🔐 AUTHORIZATION:\n1. 📂 Use existing session\n2. ➕ Create new session\n3. 🚪 Exit")
-            choice = input("\nChoose action (1-3): ").strip()
+            action = await self._show_session_menu()
 
-            if choice == "1":
-                session_name = await self.client_manager.select_session()
-                if session_name:
-                    self.client = await self.client_manager.get_client(session_name)
-                    if self.client:
-                        await self.main_menu()
-                        await self.client.disconnect()
-            elif choice == "2":
+            if action == 'exit':
+                print("\n👋 Goodbye!")
+                break
+            elif action == 'create':
                 await self.client_manager.create_new_session()
-            elif choice == "3":
-                print("\n👋 Goodbye!"); break
-            else:
-                print("❌ Invalid choice!")
+            elif action:
+                session_name = action
+                self.client = await self.client_manager.get_client(session_name)
+                if self.client:
+                    await self.main_menu()
+                    await self.client.disconnect()
+
+    async def _show_session_menu(self) -> str:
+        print("🔐 SESSIONS:")
+        session_files = self.client_manager.get_session_files()
+
+        if not session_files:
+            print("   No saved sessions found.")
+
+        for idx, file in enumerate(session_files, 1):
+            print(f"   {idx}. 📂 {file.stem}")
+
+        print("-" * 20)
+        print(f"   a. ➕ Add new session")
+        print(f"   e. 🚪 Exit")
+
+        while True:
+            prompt = f"Choose action ({'1-' + str(len(session_files)) + ', ' if session_files else ''}a, e): "
+            choice = input(f"\n{prompt}").strip().lower()
+
+            if choice == 'a':
+                return 'create'
+            if choice == 'e':
+                return 'exit'
+
+            try:
+                choice_num = int(choice)
+                if 1 <= choice_num <= len(session_files):
+                    return session_files[choice_num - 1].stem
+                else:
+                    print(f"❌ Enter a number from 1 to {len(session_files)}")
+            except (ValueError, IndexError):
+                print("❌ Please enter a valid number or letter (a, e).")
 
     async def main_menu(self):
         while True:
             print("\n" + "=" * 60 + "\n📋 MAIN MENU:")
-            print("1. 📋 Show all chats\n2. 🔍 Search chat\n3. 🆔 Export by ID\n4. ⚙️ Settings\n5. ⬅️ Back")
+            print(
+                "1. 📋 Show all chats\n2. 🔍 Search chat\n3. 🆔 Export by ID\n4. ⚙️ Settings\nb. ⬅️ Back to session select")
             choice = input("\nChoose action (1-5): ").strip()
             if choice == "1":
                 await self.show_all_chats()
@@ -50,7 +80,7 @@ class AppUI:
                 await self.export_by_id()
             elif choice == "4":
                 self.delay_settings.configure()
-            elif choice == "5":
+            elif choice == "b":
                 break
             else:
                 print("❌ Invalid choice!")
@@ -70,7 +100,7 @@ class AppUI:
         while True:
             print("\n" + "=" * 60 + "\n📱 CHAT TYPES:")
             print(f"1. 📢 Channels ({len(chats['channels'])})\n2. 👥 Groups ({len(chats['groups'])})")
-            print(f"3. 💬 Private chats ({len(chats['private'])})\n4. ⬅️ Back")
+            print(f"3. 💬 Private chats ({len(chats['private'])})\nb. ⬅️ Back")
             choice = input("\nChoose type (1-4): ").strip()
             if choice == "1":
                 await self.select_from_list(chats['channels'], "CHANNELS")
@@ -78,7 +108,7 @@ class AppUI:
                 await self.select_from_list(chats['groups'], "GROUPS")
             elif choice == "3":
                 await self.select_from_list(chats['private'], "PRIVATE CHATS")
-            elif choice == "4":
+            elif choice == "b":
                 break
             else:
                 print("❌ Invalid choice!")
@@ -121,13 +151,10 @@ class AppUI:
     def _get_formatted_name_for_ui(self, entity):
         if isinstance(entity, User):
             name_parts = []
-            if first_name := getattr(entity, 'first_name', None):
-                name_parts.append(first_name)
-            if last_name := getattr(entity, 'last_name', None):
-                name_parts.append(last_name)
+            if first_name := getattr(entity, 'first_name', None): name_parts.append(first_name)
+            if last_name := getattr(entity, 'last_name', None): name_parts.append(last_name)
             name = " ".join(name_parts).strip() or "Deleted Account"
-            if username := getattr(entity, 'username', None):
-                name += f" [@{username}]"
+            if username := getattr(entity, 'username', None): name += f" [@{username}]"
             return name
         else:
             return getattr(entity, 'title', "Unknown")
@@ -159,8 +186,7 @@ class AppUI:
                     if d.id == entity_id:
                         entity = d.entity
                         break
-                if not entity:
-                    entity = await self.client.get_entity(entity_id)
+                if not entity: entity = await self.client.get_entity(entity_id)
             else:
                 entity = await self.client.get_entity(chat_id)
 

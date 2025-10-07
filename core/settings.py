@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+
 class DelaySettings:
     def __init__(self):
         self.delay_between_messages = 0.3
@@ -49,7 +50,7 @@ class DelaySettings:
         print("  [2] Balanced (recommended): 0.3s / 1.5s")
         print("  [3] Fast (risky): 0.1s / 1s")
         print("  [4] Custom")
-        print("  [5] Back")
+        print("  [b] Back")
 
         choice = input("\nChoose preset (1-5): ").strip()
 
@@ -85,7 +86,7 @@ class DelaySettings:
             except ValueError:
                 print("❌ Invalid input! Settings not changed.")
                 return
-        elif choice == '5':
+        elif choice == 'b':
             return
         else:
             print("❌ Invalid choice!")

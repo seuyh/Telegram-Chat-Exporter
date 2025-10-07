@@ -92,7 +92,7 @@ class ChatExporter:
         async for msg in self.client.iter_messages(entity):
             if not msg: continue
 
-            data_dict = await self._process_message_for_db(msg, media_handler)
+            data_dict = await self._process_message_for_db(msg, media_handler, pbar)
 
             cursor = self.db_conn.cursor()
             cursor.execute('''
@@ -142,7 +142,7 @@ class ChatExporter:
         html_file = self.export_folder / "messages.html"
         html_file.write_text(html_content, encoding='utf-8')
 
-    async def _process_message_for_db(self, msg: Message, media_handler: Optional[MediaHandler]) -> dict:
+    async def _process_message_for_db(self, msg: Message, media_handler: Optional[MediaHandler], pbar) -> dict:
         data = {'from': await self._get_sender_name(msg), 'text': utils.format_text(msg.text or ''), }
 
         if msg.action:
@@ -150,7 +150,7 @@ class ChatExporter:
 
         if msg.media:
             if media_handler:
-                result = await media_handler.download(msg)
+                result = await media_handler.download(msg, pbar)
                 if result:
                     data['media_path'], data['media_type'] = result
             else:
@@ -187,17 +187,11 @@ class ChatExporter:
     def _get_entity_name(self, entity) -> str:
         if isinstance(entity, User):
             name_parts = []
-            if first_name := getattr(entity, 'first_name', None):
-                name_parts.append(first_name)
-            if last_name := getattr(entity, 'last_name', None):
-                name_parts.append(last_name)
-
+            if first_name := getattr(entity, 'first_name', None): name_parts.append(first_name)
+            if last_name := getattr(entity, 'last_name', None): name_parts.append(last_name)
             full_name = " ".join(name_parts).strip() or "Deleted Account"
-
-            if username := getattr(entity, 'username', None):
-                return f"{full_name} [@{username}]"
+            if username := getattr(entity, 'username', None): return f"{full_name} [@{username}]"
             return full_name
-
         elif isinstance(entity, (Chat, Channel)):
             return entity.title or "Unknown"
         return "Unknown"

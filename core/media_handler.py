@@ -6,6 +6,7 @@ from telethon.errors import FloodWaitError, TimeoutError as TelegramTimeoutError
 from . import utils
 from .settings import DelaySettings
 
+
 class MediaHandler:
     def __init__(self, media_folder: Path, delay_settings: DelaySettings):
         self.media_folder = media_folder
@@ -14,39 +15,41 @@ class MediaHandler:
     async def download(self, msg: Message, pbar=None) -> Optional[Tuple[str, str]]:
         for attempt in range(self.delay_settings.max_retries):
             try:
-                media_type = "document"
-                ext = "bin"
-                suggested_name = None
+                media_type, ext, suggested_name = "document", "bin", None
 
                 if getattr(msg, 'photo', None):
-                    media_type = "photo"
-                    ext = "jpg"
+                    media_type, ext = "photo", "jpg"
                 elif getattr(msg, 'document', None):
                     mime = getattr(msg.document, 'mime_type', '') or ''
                     mt = mime.lower()
-                    if mt.startswith('image'): media_type = 'photo'
-                    elif mt.startswith('video'): media_type = 'video'
-                    elif mt.startswith('audio'): media_type = 'audio'
-                    else: media_type = 'document'
-                    try: ext = mt.split('/')[-1] or ext
-                    except: pass
-
+                    if mt.startswith('image'):
+                        media_type = 'photo'
+                    elif mt.startswith('video'):
+                        media_type = 'video'
+                    elif mt.startswith('audio'):
+                        media_type = 'audio'
+                    else:
+                        media_type = 'document'
+                    try:
+                        ext = mt.split('/')[-1] or ext
+                    except:
+                        pass
                     try:
                         for a in getattr(msg.document, 'attributes', []):
                             if getattr(a, 'file_name', None):
                                 suggested_name = utils.sanitize_filename(a.file_name)
                                 break
-                    except: pass
+                    except:
+                        pass
                 elif isinstance(msg.media, MessageMediaWebPage):
                     try:
                         wp = msg.media.webpage
                         if getattr(wp, 'photo', None):
-                            media_type = 'photo'
-                            ext = 'jpg'
+                            media_type, ext = 'photo', 'jpg'
                         else:
-                            media_type = 'document'
-                            ext = 'html'
-                    except: media_type = 'document'; ext = 'html'
+                            media_type, ext = 'document', 'html'
+                    except:
+                        media_type, ext = 'document', 'html'
                 else:
                     media_type = 'document'
 
@@ -65,19 +68,30 @@ class MediaHandler:
                     name, suffix = Path(filename).stem, Path(filename).suffix
                     filepath = target_folder / f"{name}_{counter}{suffix}"
                     counter += 1
-                filename = filepath.name
 
-                if pbar: pbar.set_postfix_str(f"downloading {filename[:40]}...")
-                saved_path = await msg.download_media(file=str(filepath))
-                await asyncio.sleep(self.delay_settings.delay_between_media)
+                last_percent = -1
+
+                def callback(current, total):
+                    nonlocal last_percent
+                    if total > 0:
+                        percent = int((current / total) * 100)
+                        if percent > last_percent:
+                            last_percent = percent
+                            if pbar: pbar.set_postfix_str(f"Downloading media ({percent}%)")
+
+                saved_path = await msg.download_media(file=str(filepath), progress_callback=callback)
                 if pbar: pbar.set_postfix_str("")
+                await asyncio.sleep(self.delay_settings.delay_between_media)
 
                 if not saved_path: return None
                 saved_path = Path(saved_path)
                 saved_ext = saved_path.suffix.lower().lstrip('.')
-                if saved_ext in ('jpg', 'jpeg', 'png', 'webp', 'gif'): media_type = 'photo'
-                elif saved_ext in ('mp4', 'mov', 'webm', 'mkv', 'avi'): media_type = 'video'
-                elif saved_ext in ('mp3', 'wav', 'ogg', 'm4a', 'flac'): media_type = 'audio'
+                if saved_ext in ('jpg', 'jpeg', 'png', 'webp', 'gif'):
+                    media_type = 'photo'
+                elif saved_ext in ('mp4', 'mov', 'webm', 'mkv', 'avi'):
+                    media_type = 'video'
+                elif saved_ext in ('mp3', 'wav', 'ogg', 'm4a', 'flac'):
+                    media_type = 'audio'
 
                 return f"media/{media_type}/{saved_path.name}", media_type
 

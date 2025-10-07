@@ -1,7 +1,9 @@
 import re
 
+
 def sanitize_filename(name: str) -> str:
     return "".join(c for c in name if c.isalnum() or c in (' ', '-', '_', '.', '(', ')')).strip()
+
 
 def escape_html(text: str) -> str:
     return (text.replace('&', '&amp;')
@@ -9,6 +11,7 @@ def escape_html(text: str) -> str:
             .replace('>', '&gt;')
             .replace('"', '&quot;')
             .replace("'", '&#39;'))
+
 
 def format_text(text: str) -> str:
     if not text:

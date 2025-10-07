@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 
@@ -10,31 +10,8 @@ class ClientManager:
         self.sessions_folder.mkdir(exist_ok=True)
         self.client = None
 
-    async def select_session(self) -> Optional[str]:
-        session_files = list(self.sessions_folder.glob("*.session"))
-        if not session_files:
-            print("\n❌ No saved sessions! Create a new one.")
-            return None
-
-        print("\n📂 AVAILABLE SESSIONS:")
-        for idx, file in enumerate(session_files, 1):
-            print(f"{idx}. {file.stem}")
-        print(f"{len(session_files) + 1}. ⬅️ Back")
-
-        while True:
-            try:
-                choice = int(input(f"\nSelect session (1-{len(session_files) + 1}): ").strip())
-                if choice == len(session_files) + 1: return None
-                if 1 <= choice <= len(session_files):
-                    session_file = session_files[choice - 1].stem
-                    print(f"✅ Selected session: {session_file}")
-                    return session_file
-                else:
-                    print(f"❌ Enter number from 1 to {len(session_files) + 1}")
-            except (ValueError, IndexError):
-                print("❌ Enter a valid number!")
-            except KeyboardInterrupt:
-                return None
+    def get_session_files(self) -> List[Path]:
+        return list(self.sessions_folder.glob("*.session"))
 
     async def create_new_session(self):
         print("\n➕ CREATE NEW SESSION (get credentials at https://my.telegram.org)")
