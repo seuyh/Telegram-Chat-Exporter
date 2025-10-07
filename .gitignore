@@ -211,3 +211,4 @@ sessions/*
 !sessions/.PUT_YOUR_TELETHON_SESSION_HERE
 /exports/
 /settings.json
+/.idea
