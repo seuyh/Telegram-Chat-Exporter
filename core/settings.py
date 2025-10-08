@@ -74,14 +74,20 @@ class DelaySettings:
             print("⚠️ Applied: Fast preset (risky!)")
         elif choice == '4':
             try:
-                msg_delay = input(f"\nDelay between messages (current: {self.delay_between_messages}s): ").strip()
+                msg_delay = input(
+                    f"\nDelay between messages (current: {self.delay_between_messages}s): ").strip().replace(',', '.')
                 if msg_delay: self.delay_between_messages = float(msg_delay)
-                media_delay = input(f"Delay between media downloads (current: {self.delay_between_media}s): ").strip()
+
+                media_delay = input(
+                    f"Delay between media downloads (current: {self.delay_between_media}s): ").strip().replace(',', '.')
                 if media_delay: self.delay_between_media = float(media_delay)
+
                 max_retry = input(f"Max retries on error (current: {self.max_retries}): ").strip()
                 if max_retry: self.max_retries = int(max_retry)
-                retry_delay = input(f"Retry delay (current: {self.retry_delay}s): ").strip()
-                if retry_delay: self.retry_delay = int(retry_delay)
+
+                retry_delay = input(f"Retry delay (current: {self.retry_delay}s): ").strip().replace(',', '.')
+                if retry_delay: self.retry_delay = float(retry_delay)
+
                 print("✅ Custom settings applied!")
             except ValueError:
                 print("❌ Invalid input! Settings not changed.")

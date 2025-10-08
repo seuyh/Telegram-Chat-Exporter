@@ -8,7 +8,7 @@ from .settings import DelaySettings
 
 
 class MediaHandler:
-    def __init__(self, media_folder: Path, delay_settings: DelaySettings, max_file_size_mb: Optional[int] = None):
+    def __init__(self, media_folder: Path, delay_settings: DelaySettings, max_file_size_mb: Optional[float] = None):
         self.media_folder = media_folder
         self.delay_settings = delay_settings
         self.max_file_size_bytes = max_file_size_mb * 1024 * 1024 if max_file_size_mb is not None else None
@@ -31,7 +31,7 @@ class MediaHandler:
                         file_size = max(photo_sizes)
 
                 if file_size > self.max_file_size_bytes:
-                    set_postfix(f"file > {self.max_file_size_bytes / (1024*1024):.0f}MB, skipping...")
+                    set_postfix(f"file > {self.max_file_size_bytes / (1024*1024):.2f}MB, skipping...")
                     await asyncio.sleep(0.5)
                     return None
 

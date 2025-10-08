@@ -42,24 +42,41 @@ class HtmlGenerator:
             html += f'        <div class="reply-from">{utils.escape_html(msg["reply_to"]["from"])}</div>\n'
             html += f'        <div class="reply-text">{utils.format_text(msg["reply_to"]["text"][:200])}</div>\n'
             html += f'    </div>\n'
-        if msg.get('text'):
-            html += f'    <div class="text">{msg["text"]}</div>\n'
 
-        if msg.get('media'):
-            media_path, media_type = msg["media"], msg["media_type"]
-            if media_type == 'photo':
-                html += f'    <div class="media"><img class="media-item" src="{media_path}" alt="Photo"></div>\n'
-            elif media_type == 'video':
-                html += f'    <div class="media"><video class="media-item" controls playsinline preload="metadata" src="{media_path}"></video></div>\n'
-            elif media_type == 'audio':
-                html += f'    <div class="media"><audio controls src="{media_path}"></audio></div>\n'
-            else:
-                filename = media_path.split('/')[-1]
-                html += f'    <div class="document">\n'
-                html += f'        <div class="document-icon">📄</div>\n'
-                html += f'        <a href="{media_path}" class="document-name" download>{utils.escape_html(filename)}</a>\n'
+        if msg.get('media_files'):
+            count = len(msg["media_files"])
+            container_class = "media-group"
+            if count > 1:
+                container_class += f" layout-cols-{(2 if count % 2 == 0 else 3)}"
+
+            html += f'    <div class="{container_class}">\n'
+            for media in msg['media_files']:
+                media_path, media_type = media["path"], media["type"]
+
+                html += f'    <div class="media">\n'
+                if media_type == 'photo':
+                    html += f'        <img class="media-item" src="{media_path}" alt="Photo">\n'
+                elif media_type == 'video':
+                    html += f'        <div class="video-wrapper">'
+                    html += f'           <video class="media-item" playsinline preload="metadata" src="{media_path}"></video>'
+                    html += f'           <div class="play-button"></div>'
+                    html += f'        </div>'
+                elif media_type == 'audio':
+                    html += f'        <audio controls src="{media_path}"></audio>\n'
+                else:
+                    filename = media_path.split('/')[-1]
+                    html += f'    <div class="document-standalone">\n'
+                    html += f'        <div class="document-icon">📄</div>\n'
+                    html += f'        <a href="{media_path}" class="document-name" download>{utils.escape_html(filename)}</a>\n'
+                    html += f'    </div>\n'
                 html += f'    </div>\n'
-        elif msg.get('media_placeholder'):
+            html += '    </div>\n'
+
+        if msg.get('text'):
+            text_class = "text-with-media" if msg.get('media_files') else ""
+            html += f'    <div class="text {text_class}">{msg["text"]}</div>\n'
+
+        if msg.get('media_placeholder'):
             html += f'    <div class="media-placeholder">{utils.escape_html(msg["media_placeholder"])}</div>\n'
 
         html += '</div>\n'
@@ -80,28 +97,27 @@ class HtmlGenerator:
         .header {{ background: #1a2332; padding: 30px; border-radius: 12px; margin-bottom: 30px; text-align: center; }}
         .header h1 {{ font-size: 28px; margin-bottom: 10px; color: #8774e1; }}
         .header .info {{ color: #8b95a5; font-size: 14px; margin-bottom: 20px; }}
-
-        /* === ИЗМЕНЕНИЯ ЗДЕСЬ === */
-        .messages-container {{
-            /* Этот контейнер будет масштабироваться */
-            transform-origin: top; /* Масштабирование от верхнего края */
-            transition: transform 0.1s ease-out;
-        }}
+        .messages-container {{ transform-origin: top; transition: transform 0.1s ease-out; }}
         .messages {{ background: #17212b; border-radius: 12px; padding: 20px; }}
-
         .message {{ margin: 15px 0; padding: 12px 16px; background: #1a2332; border-radius: 12px; border-left: 3px solid #8774e1; transition: background 0.2s; font-size: 14px; max-width: 100%; }}
         .message:hover {{ background: #1e2936; }}
         .message-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }}
         .sender {{ font-weight: 600; color: #8774e1; font-size: 1em; }}
         .time {{ color: #8b95a5; font-size: 0.9em; }}
         .text {{ color: #e4e9f0; word-wrap: break-word; white-space: pre-wrap; }}
+        .text-with-media {{ margin-top: 10px; }}
         .text a {{ color: #5288c1; text-decoration: none; }} .text a:hover {{ text-decoration: underline; }}
         .reply {{ background: #0e1621; padding: 10px; border-radius: 8px; margin-bottom: 10px; border-left: 2px solid #5288c1; font-size: 0.9em; }}
         .forwarded {{ color: #8b95a5; font-size: 0.9em; margin-bottom: 8px; font-style: italic; }}
-        .media img, .media video {{ max-width: 100%; height: auto; display: block; border-radius: 8px; }}
-        .media-item {{ cursor: pointer; }}
+        .media-group {{ display: grid; gap: 3px; }}
+        .media img, .media video {{ width: 100%; height: auto; display: block; cursor: pointer; border-radius: 8px; }}
+        .layout-cols-2 {{ grid-template-columns: 1fr 1fr; }}
+        .layout-cols-3 {{ grid-template-columns: 1fr 1fr 1fr; }}
+        .video-wrapper {{ position: relative; width: 100%; height: 100%; border-radius: 8px; overflow: hidden;}}
+        .play-button {{ position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 60px; height: 60px; background-color: rgba(0, 0, 0, 0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: none; }}
+        .play-button::after {{ content: ''; border-style: solid; border-width: 10px 0 10px 20px; border-color: transparent transparent transparent white; margin-left: 5px; }}
         .media audio {{ width: 100%; margin-top: 8px; }}
-        .document {{ background: #0e1621; padding: 12px; border-radius: 8px; margin-top: 10px; display: flex; align-items: center; gap: 10px; font-size: 1em; }}
+        .document-standalone {{ background: #0e1621; padding: 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; font-size: 1em; }}
         .media-placeholder {{ background: #0e1621; padding: 10px; border-radius: 8px; margin-top: 10px; border-left: 2px solid #8b95a5; color: #8b95a5; font-style: italic; }}
         .date-separator, .system-message {{ text-align: center; color: #8b95a5; font-size: 13px; padding: 8px 15px; border-radius: 20px; margin: 20px auto; display: table; }}
         .date-separator {{ background: #0e1621; }}
@@ -136,36 +152,112 @@ class HtmlGenerator:
         </div>
     </div>
 
-    <div id="media-viewer">
-        </div>
+    <div id="media-viewer"></div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {{
-            // ... (код для медиа-галереи остается без изменений)
-
-            /* === НОВЫЙ КОД ДЛЯ МАСШТАБИРОВАНИЯ === */
-            const slider = document.getElementById('scaleSlider');
+            const viewer = document.getElementById('media-viewer');
             const messagesContainer = document.querySelector('.messages-container');
+            const body = document.body;
+            const slider = document.getElementById('scaleSlider');
+            let mediaItems = [];
+            let currentIndex = -1;
+
+            const setupMediaItems = () => {{
+                const clickableMedia = document.querySelectorAll('.media-item');
+                mediaItems = Array.from(clickableMedia);
+                mediaItems.forEach((item, index) => {{
+                    const parent = item.parentElement;
+                    if (parent.classList.contains('video-wrapper')) {{
+                        parent.addEventListener('click', () => openViewer(index));
+                    }} else {{
+                        item.addEventListener('click', () => openViewer(index));
+                    }}
+                }});
+            }};
+
+            const openViewer = (index) => {{
+                currentIndex = index;
+                updateViewerContent();
+                viewer.style.display = 'flex';
+                body.classList.add('body-no-scroll');
+            }};
+
+            const closeViewer = () => {{
+                viewer.style.display = 'none';
+                viewer.innerHTML = '';
+                body.classList.remove('body-no-scroll');
+            }};
+
+            const changeMedia = (direction) => {{
+                currentIndex += direction;
+                if (currentIndex >= mediaItems.length) currentIndex = 0;
+                if (currentIndex < 0) currentIndex = mediaItems.length - 1;
+                updateViewerContent();
+            }};
+
+            const updateViewerContent = () => {{
+                const item = mediaItems[currentIndex];
+                const isVideo = item.tagName === 'VIDEO';
+                let contentHtml = isVideo ? `<video src="${{item.getAttribute('src')}}" controls autoplay></video>` : `<img src="${{item.src}}" alt="Media">`;
+                viewer.innerHTML = `
+                    <div id="viewer-close" class="viewer-control">×</div>
+                    <div id="viewer-prev" class="viewer-nav viewer-control">‹</div>
+                    <div id="viewer-next" class="viewer-nav viewer-control">›</div>
+                    <div id="viewer-counter">${{currentIndex + 1}} / ${{mediaItems.length}}</div>
+                    ${{contentHtml}}
+                `;
+            }};
+
+            viewer.addEventListener('click', (e) => {{
+                if (e.target.classList.contains('viewer-control')) {{
+                    if (e.target.id === 'viewer-close') closeViewer();
+                    if (e.target.id === 'viewer-prev') changeMedia(-1);
+                    if (e.target.id === 'viewer-next') changeMedia(1);
+                }} else if (e.target.tagName !== 'VIDEO') {{
+                    closeViewer();
+                }}
+            }});
+
+            document.addEventListener('keydown', (e) => {{
+                if (viewer.style.display === 'flex') {{
+                    if (e.key === 'Escape') closeViewer();
+                    if (e.key === 'ArrowLeft') changeMedia(-1);
+                    if (e.key === 'ArrowRight') changeMedia(1);
+                }}
+            }});
 
             const applyScale = (scaleValue) => {{
-                // Преобразуем значение слайдера (50-150) в масштаб (0.5-1.5)
-                const scale = scaleValue / 100;
+                let value = parseInt(scaleValue, 10);
+
+                if (window.innerWidth < 768 && value > 100) {{
+                    value = 100;
+                    slider.value = 100;
+                }}
+
+                const scale = value / 100;
                 messagesContainer.style.transform = `scale(${{scale}})`;
             }};
 
-            // Применяем сохраненный масштаб при загрузке
             const savedScale = localStorage.getItem('chatPageScale');
             if (savedScale) {{
                 slider.value = savedScale;
-                applyScale(savedScale);
             }}
+            applyScale(slider.value);
 
-            // Слушаем изменения слайдера
             slider.addEventListener('input', (e) => {{
-                const newScale = e.target.value;
-                applyScale(newScale);
-                localStorage.setItem('chatPageScale', newScale);
+                const newScaleValue = e.target.value;
+                applyScale(newScaleValue);
+                if (window.innerWidth >= 768 || newScaleValue <= 100) {{
+                   localStorage.setItem('chatPageScale', newScaleValue);
+                }}
             }});
+
+            window.addEventListener('resize', () => {{
+                applyScale(slider.value);
+            }});
+
+            setupMediaItems();
         }});
     </script>
 </body>

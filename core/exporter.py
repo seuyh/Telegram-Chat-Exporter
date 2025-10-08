@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from peewee import (Model, SqliteDatabase, TextField, DateTimeField, Proxy)
+from peewee import (Model, SqliteDatabase, TextField, DateTimeField, Proxy, IntegerField)
 from telethon import TelegramClient
 from telethon.tl.types import (User, Chat, Channel, Message, MessageActionChannelCreate,
                                MessageActionChatAddUser, MessageActionChatDeleteUser,
@@ -19,7 +19,10 @@ from .settings import DelaySettings
 
 db_proxy = Proxy()
 
+
 class MessageModel(Model):
+    telegram_message_id = IntegerField(primary_key=True)
+    grouped_id = IntegerField(null=True)
     date = DateTimeField()
     sender = TextField(null=True)
     text = TextField(null=True)
@@ -50,7 +53,7 @@ class ChatExporter:
         self.db.connect()
         self.db.create_tables([MessageModel])
 
-    async def export_chat(self, entity, download_media: bool, max_file_size: Optional[int] = None):
+    async def export_chat(self, entity, download_media: bool, max_file_size: Optional[float] = None):
         chat_name = self._get_entity_name(entity)
         safe_name = utils.sanitize_filename(chat_name)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -72,8 +75,8 @@ class ChatExporter:
             print(
                 f"\n{'=' * 60}\n✨ EXPORT COMPLETED!\n📄 File: {(self.export_folder / 'messages.html').absolute()}\n📊 Messages: {total_messages}")
             if download_media and self.media_folder:
-                media_count = sum(1 for f in self.export_folder.rglob('*') if f.is_file())
-                print(f"🖼️ Media files: {media_count - 1}")
+                media_count = sum(1 for f in (self.export_folder / "media").rglob('*') if f.is_file())
+                print(f"🖼️ Media files: {media_count}")
             print("=" * 60)
         except Exception as e:
             print(f"❌ Error: {e}")
@@ -90,9 +93,10 @@ class ChatExporter:
                     print(f"\n⚠️ Warning: Could not delete temporary database '{self.db_path}'.")
                     print(f"   Reason: {e}. You can safely delete this file manually.")
 
-    async def _data_ingestion_pass(self, entity, download_media: bool, max_file_size: Optional[int]) -> int:
+    async def _data_ingestion_pass(self, entity, download_media: bool, max_file_size: Optional[float]) -> int:
         print("\n⏳ Loading messages and media into database...")
-        media_handler = MediaHandler(self.media_folder, self.delay_settings, max_file_size) if download_media else None
+        media_handler = MediaHandler(self.media_folder, self.delay_settings,
+                                     max_file_size) if download_media else None
 
         total = await self.client.get_messages(entity, limit=0)
         pbar = async_tqdm(total=total.total, desc="Exporting", unit=" msg", colour='cyan')
@@ -106,6 +110,8 @@ class ChatExporter:
 
             data_dict = await self._process_message_for_db(msg, media_handler, pbar)
             batch.append({
+                'telegram_message_id': msg.id,
+                'grouped_id': msg.grouped_id,
                 'date': msg.date,
                 'sender': data_dict.get('from'),
                 'text': data_dict.get('text'),
@@ -136,25 +142,43 @@ class ChatExporter:
     def _html_generation_pass(self, chat_name: str, total_messages: int):
         print(f"\n📄 Generating HTML from database...")
 
-        processed_messages = []
+        messages_map = {}
         query = MessageModel.select().order_by(MessageModel.date.asc())
 
         for msg_record in query:
-            msg_date = msg_record.date
-            if isinstance(msg_date, str):
-                msg_date = datetime.fromisoformat(msg_date)
+            key = msg_record.grouped_id if msg_record.grouped_id else msg_record.telegram_message_id
 
-            processed_messages.append({
-                'date': msg_date,
-                'from': msg_record.sender,
-                'text': msg_record.text,
-                'reply_to': json.loads(msg_record.reply_to) if msg_record.reply_to else None,
-                'forwarded': json.loads(msg_record.forwarded_from) if msg_record.forwarded_from else None,
-                'media': msg_record.media_path,
-                'media_type': msg_record.media_type,
-                'media_placeholder': msg_record.media_placeholder,
-                'action_text': msg_record.action_text
-            })
+            if key not in messages_map:
+                msg_date = msg_record.date
+                if isinstance(msg_date, str):
+                    msg_date = datetime.fromisoformat(msg_date)
+
+                messages_map[key] = {
+                    'date': msg_date,
+                    'from': msg_record.sender,
+                    'text': msg_record.text,
+                    'reply_to': json.loads(msg_record.reply_to) if msg_record.reply_to else None,
+                    'forwarded': json.loads(msg_record.forwarded_from) if msg_record.forwarded_from else None,
+                    'media_files': [],
+                    'media_placeholder': msg_record.media_placeholder,
+                    'action_text': msg_record.action_text
+                }
+
+            if msg_record.text:
+                messages_map[key]['text'] = msg_record.text
+
+            if msg_record.media_path:
+                messages_map[key]['media_files'].append({
+                    'path': msg_record.media_path,
+                    'type': msg_record.media_type
+                })
+
+        processed_messages = list(messages_map.values())
+
+        processed_messages = [
+            msg for msg in processed_messages
+            if msg.get('text') or msg.get('media_files') or msg.get('action_text') or msg.get('media_placeholder')
+        ]
 
         generator = HtmlGenerator(chat_name, processed_messages)
         html_content = generator.generate()

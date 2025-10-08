@@ -222,13 +222,17 @@ class AppUI:
         max_file_size = None
 
         if download_media:
-            try:
-                max_size_mb_str = input("Enter max file size in MB (leave empty for no limit): ").strip()
-                if max_size_mb_str:
-                    max_file_size = int(max_size_mb_str)
-            except ValueError:
-                print("❌ Invalid input! No size limit will be applied.")
-                max_file_size = None
+            while True:
+                try:
+                    max_size_mb_str = input("Enter max file size in MB (leave empty for no limit): ").strip().replace(',', '.')
+                    if max_size_mb_str:
+                        max_file_size = float(max_size_mb_str)
+                        break
+                    else:
+                        max_file_size = None
+                        break
+                except ValueError:
+                    print("❌ Invalid input! Please enter a number (e.g., 50, 2.5, 0.5) or leave empty.")
 
         print(f"\n✅ READY TO EXPORT:\n   Chat: {name}\n   Media: {'yes' if download_media else 'no'}")
         if download_media and max_file_size is not None:
