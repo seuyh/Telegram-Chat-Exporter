@@ -16,6 +16,7 @@ A powerful and sophisticated console-based tool to export your Telegram chat his
     * Search for chats by name.
     * Export directly using a User/Chat/Channel ID or username.
     * Choose to export with or without media files.
+    * Set a maximum file size for media downloads to skip large files.
 * **🛡️ Configurable**: Features adjustable request delays with built-in presets (Safe, Balanced, Risky) to protect your account from API rate limits.
 
 ---
@@ -49,6 +50,9 @@ telegram-chat-exporter/
 │   ├── ui.py             \# Handles all command-line user interactions (menus, prompts)
 │   └── utils.py          \# Helper utility functions
 │
+│── sessions/             \# Directory with your Telethon sessions
+│   └── your_account.session \# Session file
+│
 ├── main.py               \# Main entry point of the application
 ├── requirements.txt      \# Python dependencies
 └── README.md             \# This file
@@ -68,7 +72,7 @@ telegram-chat-exporter/
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/your-username/telegram-chat-exporter.git](https://github.com/your-username/telegram-chat-exporter.git)
+    git clone [https://github.com/seuyh/telegram-chat-exporter.git](https://github.com/your-username/telegram-chat-exporter.git)
     cd telegram-chat-exporter
     ```
 
@@ -89,14 +93,14 @@ telegram-chat-exporter/
     * Enter your `API ID`, `API Hash`, phone number, and a name for the session file (e.g., `my_account`).
     * You will receive a login code from Telegram. Enter it when prompted.
     * If you have 2-Step Verification enabled, you will also be asked for your password.
-    * Your session will be securely saved in the `sessions/` folder.
+    * Your session will be saved in the `sessions/` folder.
 
     > **Note on Sessions:** This tool uses **Telethon** for session management. Only session files created by this tool or other Telethon-based applications are compatible.
 
 3.  **Exporting a Chat:**
     * On subsequent runs, choose `Use existing session` to log in instantly.
     * From the main menu, you can browse, search, or directly specify the chat you wish to export.
-    * Follow the on-screen prompts to configure your export (e.g., download media). All yes/no questions default to "yes," so you can simply press `Enter` to confirm.
+    * Follow the on-screen prompts to configure your export (e.g., download media, set a max file size).
 
 4.  **Viewing the Result:**
     * Once the process is complete, you will find a new folder inside the `exports/` directory containing your `messages.html` file and any downloaded media.
