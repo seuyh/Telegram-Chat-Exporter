@@ -84,181 +84,258 @@ class HtmlGenerator:
 
     def _get_html_template(self, messages_html: str) -> str:
         return f'''<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{utils.escape_html(self.chat_name)} - Export</title>
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #0e1621; color: #ffffff; line-height: 1.5; }}
-        .body-no-scroll {{ overflow: hidden; }}
-        .container {{ max-width: 900px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: #1a2332; padding: 30px; border-radius: 12px; margin-bottom: 30px; text-align: center; }}
-        .header h1 {{ font-size: 28px; margin-bottom: 10px; color: #8774e1; }}
-        .header .info {{ color: #8b95a5; font-size: 14px; margin-bottom: 20px; }}
-        .messages-container {{ transform-origin: top; transition: transform 0.1s ease-out; }}
-        .messages {{ background: #17212b; border-radius: 12px; padding: 20px; }}
-        .message {{ margin: 15px 0; padding: 12px 16px; background: #1a2332; border-radius: 12px; border-left: 3px solid #8774e1; transition: background 0.2s; font-size: 14px; max-width: 100%; }}
-        .message:hover {{ background: #1e2936; }}
-        .message-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }}
-        .sender {{ font-weight: 600; color: #8774e1; font-size: 1em; }}
-        .time {{ color: #8b95a5; font-size: 0.9em; }}
-        .text {{ color: #e4e9f0; word-wrap: break-word; white-space: pre-wrap; }}
-        .text-with-media {{ margin-top: 10px; }}
-        .text a {{ color: #5288c1; text-decoration: none; }} .text a:hover {{ text-decoration: underline; }}
-        .reply {{ background: #0e1621; padding: 10px; border-radius: 8px; margin-bottom: 10px; border-left: 2px solid #5288c1; font-size: 0.9em; }}
-        .forwarded {{ color: #8b95a5; font-size: 0.9em; margin-bottom: 8px; font-style: italic; }}
-        .media-group {{ display: grid; gap: 3px; }}
-        .media img, .media video {{ width: 100%; height: auto; display: block; cursor: pointer; border-radius: 8px; }}
-        .layout-cols-2 {{ grid-template-columns: 1fr 1fr; }}
-        .layout-cols-3 {{ grid-template-columns: 1fr 1fr 1fr; }}
-        .video-wrapper {{ position: relative; width: 100%; height: 100%; border-radius: 8px; overflow: hidden;}}
-        .play-button {{ position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 60px; height: 60px; background-color: rgba(0, 0, 0, 0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: none; }}
-        .play-button::after {{ content: ''; border-style: solid; border-width: 10px 0 10px 20px; border-color: transparent transparent transparent white; margin-left: 5px; }}
-        .media audio {{ width: 100%; margin-top: 8px; }}
-        .document-standalone {{ background: #0e1621; padding: 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; font-size: 1em; }}
-        .media-placeholder {{ background: #0e1621; padding: 10px; border-radius: 8px; margin-top: 10px; border-left: 2px solid #8b95a5; color: #8b95a5; font-style: italic; }}
-        .date-separator, .system-message {{ text-align: center; color: #8b95a5; font-size: 13px; padding: 8px 15px; border-radius: 20px; margin: 20px auto; display: table; }}
-        .date-separator {{ background: #0e1621; }}
-        .system-message {{ background: #1a2332; }}
-        .scale-slider-container {{ color: #8b95a5; font-size: 14px; display: flex; justify-content: center; align-items: center; gap: 12px; user-select: none; }}
-        input[type="range"] {{ -webkit-appearance: none; appearance: none; width: 220px; background: transparent; cursor: pointer; }}
-        input[type="range"]::-webkit-slider-runnable-track {{ background: #0e1621; height: 4px; border-radius: 2px; }}
-        input[type="range"]::-moz-range-track {{ background: #0e1621; height: 4px; border-radius: 2px; }}
-        input[type="range"]::-webkit-slider-thumb {{ -webkit-appearance: none; appearance: none; margin-top: -6px; background-color: #8774e1; height: 16px; width: 16px; border-radius: 50%; }}
-        input[type="range"]::-moz-range-thumb {{ background-color: #8774e1; height: 16px; width: 16px; border-radius: 50%; border: none; }}
-        #media-viewer {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; justify-content: center; align-items: center; user-select: none; }}
-        #media-viewer img, #media-viewer video {{ max-width: 90%; max-height: 80%; border-radius: 8px; object-fit: contain; }}
-        .viewer-nav {{ position: absolute; top: 50%; transform: translateY(-50%); width: 50px; height: 50px; background: rgba(255,255,255,0.1); color: white; border-radius: 50%; font-size: 30px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: background 0.2s; }}
-        #viewer-prev {{ left: 20px; }} #viewer-next {{ right: 20px; }}
-        #viewer-close {{ position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; color: white; font-size: 30px; cursor: pointer; }}
-        #viewer-counter {{ position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>{utils.escape_html(self.chat_name)}</h1>
-            <div class="info">Exported: {datetime.now().strftime("%d.%m.%Y %H:%M")} | Messages: {len(self.messages)}</div>
-            <div class="scale-slider-container">
-                <span style="font-size: 12px;">-</span>
-                <input type="range" id="scaleSlider" min="50" max="150" value="100">
-                <span style="font-size: 18px;">+</span>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{utils.escape_html(self.chat_name)} - Export</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #0e1621; color: #ffffff; line-height: 1.5; }}
+            .body-no-scroll {{ overflow: hidden; }}
+            .container {{ max-width: 900px; margin: 0 auto; padding: 20px; }}
+
+            /* --- ИЗМЕНЕНИЯ ДЛЯ ХЕДЕРА --- */
+            .header {{ 
+                background: #1a2332; 
+                padding: 30px; 
+                border-radius: 12px; 
+                margin-bottom: 30px; 
+                text-align: center;
+                position: sticky;
+                top: 0;
+                z-index: 100;
+                transition: transform 0.3s ease-in-out, padding 0.3s ease-in-out;
+                will-change: transform, padding;
+            }}
+            .header--hidden {{
+                transform: translateY(-120%);
+            }}
+            .header h1 {{ 
+                font-size: 28px; 
+                margin-bottom: 10px; 
+                color: #8774e1;
+                transition: font-size 0.3s ease-in-out, margin-bottom 0.3s ease-in-out;
+            }}
+            .header .info {{ 
+                color: #8b95a5; 
+                font-size: 14px; 
+                margin-bottom: 20px;
+                transition: opacity 0.3s ease-in-out, height 0.3s ease-in-out, margin-bottom 0.2s ease-in-out;
+                height: 1.5em; /* Задаем высоту для плавной анимации */
+                opacity: 1;
+                overflow: hidden;
+            }}
+
+            /* Новый класс для "уменьшенного" хедера */
+            .header--shrunk {{
+                padding-top: 15px;
+                padding-bottom: 15px;
+            }}
+            .header--shrunk h1 {{
+                font-size: 22px;
+                margin-bottom: 15px;
+            }}
+            .header--shrunk .info {{
+                height: 0;
+                opacity: 0;
+                margin-bottom: 0;
+            }}
+            /* --- КОНЕЦ ИЗМЕНЕНИЙ ДЛЯ ХЕДЕРА --- */
+
+            .messages-container {{ transform-origin: top; transition: transform 0.1s ease-out; }}
+            .messages {{ background: #17212b; border-radius: 12px; padding: 20px; }}
+            .message {{ margin: 15px 0; padding: 12px 16px; background: #1a2332; border-radius: 12px; border-left: 3px solid #8774e1; transition: background 0.2s; font-size: 14px; max-width: 100%; }}
+            .message:hover {{ background: #1e2936; }}
+            .message-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }}
+            .sender {{ font-weight: 600; color: #8774e1; font-size: 1em; }}
+            .time {{ color: #8b95a5; font-size: 0.9em; }}
+            .text {{ color: #e4e9f0; word-wrap: break-word; white-space: pre-wrap; }}
+            .text-with-media {{ margin-top: 10px; }}
+            .text a {{ color: #5288c1; text-decoration: none; }} .text a:hover {{ text-decoration: underline; }}
+            .reply {{ background: #0e1621; padding: 10px; border-radius: 8px; margin-bottom: 10px; border-left: 2px solid #5288c1; font-size: 0.9em; }}
+            .forwarded {{ color: #8b95a5; font-size: 0.9em; margin-bottom: 8px; font-style: italic; }}
+            .media-group {{ display: grid; gap: 3px; }}
+            .media img, .media video {{ width: 100%; height: auto; display: block; cursor: pointer; border-radius: 8px; }}
+            .layout-cols-2 {{ grid-template-columns: 1fr 1fr; }}
+            .layout-cols-3 {{ grid-template-columns: 1fr 1fr 1fr; }}
+            .video-wrapper {{ position: relative; width: 100%; height: 100%; border-radius: 8px; overflow: hidden;}}
+            .play-button {{ position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 60px; height: 60px; background-color: rgba(0, 0, 0, 0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: none; }}
+            .play-button::after {{ content: ''; border-style: solid; border-width: 10px 0 10px 20px; border-color: transparent transparent transparent white; margin-left: 5px; }}
+            .media audio {{ width: 100%; margin-top: 8px; }}
+            .document-standalone {{ background: #0e1621; padding: 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; font-size: 1em; }}
+            .media-placeholder {{ background: #0e1621; padding: 10px; border-radius: 8px; margin-top: 10px; border-left: 2px solid #8b95a5; color: #8b95a5; font-style: italic; }}
+            .date-separator, .system-message {{ text-align: center; color: #8b95a5; font-size: 13px; padding: 8px 15px; border-radius: 20px; margin: 20px auto; display: table; }}
+            .date-separator {{ background: #0e1621; }}
+            .system-message {{ background: #1a2332; }}
+            .scale-slider-container {{ color: #8b95a5; font-size: 14px; display: flex; justify-content: center; align-items: center; gap: 12px; user-select: none; }}
+            input[type="range"] {{ -webkit-appearance: none; appearance: none; width: 220px; background: transparent; cursor: pointer; }}
+            input[type="range"]::-webkit-slider-runnable-track {{ background: #0e1621; height: 4px; border-radius: 2px; }}
+            input[type="range"]::-moz-range-track {{ background: #0e1621; height: 4px; border-radius: 2px; }}
+            input[type="range"]::-webkit-slider-thumb {{ -webkit-appearance: none; appearance: none; margin-top: -6px; background-color: #8774e1; height: 16px; width: 16px; border-radius: 50%; }}
+            input[type="range"]::-moz-range-thumb {{ background-color: #8774e1; height: 16px; width: 16px; border-radius: 50%; border: none; }}
+            #media-viewer {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; justify-content: center; align-items: center; user-select: none; }}
+            #media-viewer img, #media-viewer video {{ max-width: 90%; max-height: 80%; border-radius: 8px; object-fit: contain; }}
+            .viewer-nav {{ position: absolute; top: 50%; transform: translateY(-50%); width: 50px; height: 50px; background: rgba(255,255,255,0.1); color: white; border-radius: 50%; font-size: 30px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: background 0.2s; }}
+            #viewer-prev {{ left: 20px; }} #viewer-next {{ right: 20px; }}
+            #viewer-close {{ position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; color: white; font-size: 30px; cursor: pointer; }}
+            #viewer-counter {{ position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>{utils.escape_html(self.chat_name)}</h1>
+                <div class="info">Exported: {datetime.now().strftime("%d.%m.%Y %H:%M")} | Messages: {len(self.messages)}</div>
+                <div class="scale-slider-container">
+                    <span style="font-size: 12px;">-</span>
+                    <input type="range" id="scaleSlider" min="50" max="150" value="100">
+                    <span style="font-size: 18px;">+</span>
+                </div>
+            </div>
+            <div class="messages-container">
+                <div class="messages">{messages_html}</div>
             </div>
         </div>
-        <div class="messages-container">
-            <div class="messages">{messages_html}</div>
-        </div>
-    </div>
 
-    <div id="media-viewer"></div>
+        <div id="media-viewer"></div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {{
-            const viewer = document.getElementById('media-viewer');
-            const messagesContainer = document.querySelector('.messages-container');
-            const body = document.body;
-            const slider = document.getElementById('scaleSlider');
-            let mediaItems = [];
-            let currentIndex = -1;
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {{
+                const viewer = document.getElementById('media-viewer');
+                const messagesContainer = document.querySelector('.messages-container');
+                const messages = document.querySelector('.messages');
+                const body = document.body;
+                const slider = document.getElementById('scaleSlider');
+                const header = document.querySelector('.header');
+                const initialContentHeight = messages.offsetHeight;
+                let mediaItems = [];
+                let currentIndex = -1;
+                let lastScrollTop = 0;
 
-            const setupMediaItems = () => {{
-                const clickableMedia = document.querySelectorAll('.media-item');
-                mediaItems = Array.from(clickableMedia);
-                mediaItems.forEach((item, index) => {{
-                    const parent = item.parentElement;
-                    if (parent.classList.contains('video-wrapper')) {{
-                        parent.addEventListener('click', () => openViewer(index));
-                    }} else {{
-                        item.addEventListener('click', () => openViewer(index));
+                const setupMediaItems = () => {{
+                    const clickableMedia = document.querySelectorAll('.media-item');
+                    mediaItems = Array.from(clickableMedia);
+                    mediaItems.forEach((item, index) => {{
+                        const parent = item.parentElement;
+                        if (parent.classList.contains('video-wrapper')) {{
+                            parent.addEventListener('click', () => openViewer(index));
+                        }} else {{
+                            item.addEventListener('click', () => openViewer(index));
+                        }}
+                    }});
+                }};
+
+                const openViewer = (index) => {{
+                    currentIndex = index;
+                    updateViewerContent();
+                    viewer.style.display = 'flex';
+                    body.classList.add('body-no-scroll');
+                }};
+
+                const closeViewer = () => {{
+                    viewer.style.display = 'none';
+                    viewer.innerHTML = '';
+                    body.classList.remove('body-no-scroll');
+                }};
+
+                const changeMedia = (direction) => {{
+                    currentIndex += direction;
+                    if (currentIndex >= mediaItems.length) currentIndex = 0;
+                    if (currentIndex < 0) currentIndex = mediaItems.length - 1;
+                    updateViewerContent();
+                }};
+
+                const updateViewerContent = () => {{
+                    const item = mediaItems[currentIndex];
+                    const isVideo = item.tagName === 'VIDEO';
+                    let contentHtml = isVideo ? `<video src="${{item.getAttribute('src')}}" controls autoplay></video>` : `<img src="${{item.src}}" alt="Media">`;
+                    viewer.innerHTML = `
+                        <div id="viewer-close" class="viewer-control">×</div>
+                        <div id="viewer-prev" class="viewer-nav viewer-control">‹</div>
+                        <div id="viewer-next" class="viewer-nav viewer-control">›</div>
+                        <div id="viewer-counter">${{currentIndex + 1}} / ${{mediaItems.length}}</div>
+                        ${{contentHtml}}
+                    `;
+                }};
+
+                viewer.addEventListener('click', (e) => {{
+                    if (e.target.classList.contains('viewer-control')) {{
+                        if (e.target.id === 'viewer-close') closeViewer();
+                        if (e.target.id === 'viewer-prev') changeMedia(-1);
+                        if (e.target.id === 'viewer-next') changeMedia(1);
+                    }} else if (e.target.tagName !== 'VIDEO') {{
+                        closeViewer();
                     }}
                 }});
-            }};
 
-            const openViewer = (index) => {{
-                currentIndex = index;
-                updateViewerContent();
-                viewer.style.display = 'flex';
-                body.classList.add('body-no-scroll');
-            }};
+                document.addEventListener('keydown', (e) => {{
+                    if (viewer.style.display === 'flex') {{
+                        if (e.key === 'Escape') closeViewer();
+                        if (e.key === 'ArrowLeft') changeMedia(-1);
+                        if (e.key === 'ArrowRight') changeMedia(1);
+                    }}
+                }});
 
-            const closeViewer = () => {{
-                viewer.style.display = 'none';
-                viewer.innerHTML = '';
-                body.classList.remove('body-no-scroll');
-            }};
+                const applyScale = (scaleValue) => {{
+                    let value = parseInt(scaleValue, 10);
 
-            const changeMedia = (direction) => {{
-                currentIndex += direction;
-                if (currentIndex >= mediaItems.length) currentIndex = 0;
-                if (currentIndex < 0) currentIndex = mediaItems.length - 1;
-                updateViewerContent();
-            }};
+                    if (window.innerWidth < 768 && value > 100) {{
+                        value = 100;
+                        slider.value = 100;
+                    }}
 
-            const updateViewerContent = () => {{
-                const item = mediaItems[currentIndex];
-                const isVideo = item.tagName === 'VIDEO';
-                let contentHtml = isVideo ? `<video src="${{item.getAttribute('src')}}" controls autoplay></video>` : `<img src="${{item.src}}" alt="Media">`;
-                viewer.innerHTML = `
-                    <div id="viewer-close" class="viewer-control">×</div>
-                    <div id="viewer-prev" class="viewer-nav viewer-control">‹</div>
-                    <div id="viewer-next" class="viewer-nav viewer-control">›</div>
-                    <div id="viewer-counter">${{currentIndex + 1}} / ${{mediaItems.length}}</div>
-                    ${{contentHtml}}
-                `;
-            }};
+                    const scale = value / 100;
+                    messagesContainer.style.transform = `scale(${{scale}})`;
+                    messagesContainer.style.height = `${{initialContentHeight * scale}}px`;
+                }};
 
-            viewer.addEventListener('click', (e) => {{
-                if (e.target.classList.contains('viewer-control')) {{
-                    if (e.target.id === 'viewer-close') closeViewer();
-                    if (e.target.id === 'viewer-prev') changeMedia(-1);
-                    if (e.target.id === 'viewer-next') changeMedia(1);
-                }} else if (e.target.tagName !== 'VIDEO') {{
-                    closeViewer();
+                const savedScale = localStorage.getItem('chatPageScale');
+                if (savedScale) {{
+                    slider.value = savedScale;
                 }}
-            }});
-
-            document.addEventListener('keydown', (e) => {{
-                if (viewer.style.display === 'flex') {{
-                    if (e.key === 'Escape') closeViewer();
-                    if (e.key === 'ArrowLeft') changeMedia(-1);
-                    if (e.key === 'ArrowRight') changeMedia(1);
-                }}
-            }});
-
-            const applyScale = (scaleValue) => {{
-                let value = parseInt(scaleValue, 10);
-
-                if (window.innerWidth < 768 && value > 100) {{
-                    value = 100;
-                    slider.value = 100;
-                }}
-
-                const scale = value / 100;
-                messagesContainer.style.transform = `scale(${{scale}})`;
-            }};
-
-            const savedScale = localStorage.getItem('chatPageScale');
-            if (savedScale) {{
-                slider.value = savedScale;
-            }}
-            applyScale(slider.value);
-
-            slider.addEventListener('input', (e) => {{
-                const newScaleValue = e.target.value;
-                applyScale(newScaleValue);
-                if (window.innerWidth >= 768 || newScaleValue <= 100) {{
-                   localStorage.setItem('chatPageScale', newScaleValue);
-                }}
-            }});
-
-            window.addEventListener('resize', () => {{
                 applyScale(slider.value);
-            }});
 
-            setupMediaItems();
-        }});
-    </script>
-</body>
-</html>'''
+                slider.addEventListener('input', (e) => {{
+                    const newScaleValue = e.target.value;
+                    applyScale(newScaleValue);
+                    if (window.innerWidth >= 768 || newScaleValue <= 100) {{
+                       localStorage.setItem('chatPageScale', newScaleValue);
+                    }}
+                }});
+
+                // --- ОБНОВЛЕННАЯ ЛОГИКА ДЛЯ ХЕДЕРА ---
+                header.addEventListener('mouseenter', () => {{
+                    header.classList.remove('header--hidden');
+                }});
+
+                window.addEventListener('scroll', () => {{
+                    let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+                    // Логика уменьшения хедера
+                    if (scrollTop > 50) {{
+                        header.classList.add('header--shrunk');
+                    }} else {{
+                        header.classList.remove('header--shrunk');
+                    }}
+
+                    // Логика скрытия/показа хедера
+                    if (scrollTop > lastScrollTop && scrollTop > 50) {{
+                        header.classList.add('header--hidden');
+                    }} else {{
+                        header.classList.remove('header--hidden');
+                    }}
+
+                    lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+                }}, false);
+                // --- КОНЕЦ ОБНОВЛЕННОЙ ЛОГИКИ ---
+
+                window.addEventListener('resize', () => {{
+                    applyScale(slider.value);
+                }});
+
+                setupMediaItems();
+            }});
+        </script>
+    </body>
+    </html>'''
