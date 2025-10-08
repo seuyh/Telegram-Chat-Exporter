@@ -95,7 +95,6 @@ class HtmlGenerator:
             .body-no-scroll {{ overflow: hidden; }}
             .container {{ max-width: 900px; margin: 0 auto; padding: 20px; }}
 
-            /* --- ИЗМЕНЕНИЯ ДЛЯ ХЕДЕРА --- */
             .header {{ 
                 background: #1a2332; 
                 padding: 30px; 
@@ -122,12 +121,11 @@ class HtmlGenerator:
                 font-size: 14px; 
                 margin-bottom: 20px;
                 transition: opacity 0.3s ease-in-out, height 0.3s ease-in-out, margin-bottom 0.2s ease-in-out;
-                height: 1.5em; /* Задаем высоту для плавной анимации */
+                height: 1.5em;
                 opacity: 1;
                 overflow: hidden;
             }}
 
-            /* Новый класс для "уменьшенного" хедера */
             .header--shrunk {{
                 padding-top: 15px;
                 padding-bottom: 15px;
@@ -141,7 +139,6 @@ class HtmlGenerator:
                 opacity: 0;
                 margin-bottom: 0;
             }}
-            /* --- КОНЕЦ ИЗМЕНЕНИЙ ДЛЯ ХЕДЕРА --- */
 
             .messages-container {{ transform-origin: top; transition: transform 0.1s ease-out; }}
             .messages {{ background: #17212b; border-radius: 12px; padding: 20px; }}
@@ -304,7 +301,6 @@ class HtmlGenerator:
                     }}
                 }});
 
-                // --- ОБНОВЛЕННАЯ ЛОГИКА ДЛЯ ХЕДЕРА ---
                 header.addEventListener('mouseenter', () => {{
                     header.classList.remove('header--hidden');
                 }});
@@ -312,14 +308,12 @@ class HtmlGenerator:
                 window.addEventListener('scroll', () => {{
                     let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
 
-                    // Логика уменьшения хедера
                     if (scrollTop > 50) {{
                         header.classList.add('header--shrunk');
                     }} else {{
                         header.classList.remove('header--shrunk');
                     }}
 
-                    // Логика скрытия/показа хедера
                     if (scrollTop > lastScrollTop && scrollTop > 50) {{
                         header.classList.add('header--hidden');
                     }} else {{
@@ -328,7 +322,6 @@ class HtmlGenerator:
 
                     lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
                 }}, false);
-                // --- КОНЕЦ ОБНОВЛЕННОЙ ЛОГИКИ ---
 
                 window.addEventListener('resize', () => {{
                     applyScale(slider.value);
