@@ -1,19 +1,37 @@
 import asyncio
-import sqlite3
 import json
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from tqdm.asyncio import tqdm as async_tqdm
+
+from peewee import (Model, SqliteDatabase, TextField, DateTimeField, Proxy)
 from telethon import TelegramClient
-from telethon.tl.types import User, Chat, Channel, Message, MessageActionChannelCreate, \
-    MessageActionChatAddUser, MessageActionChatDeleteUser, MessageActionChatJoinedByLink, MessageActionPinMessage
+from telethon.tl.types import (User, Chat, Channel, Message, MessageActionChannelCreate,
+                               MessageActionChatAddUser, MessageActionChatDeleteUser,
+                               MessageActionChatJoinedByLink, MessageActionPinMessage)
+from tqdm.asyncio import tqdm as async_tqdm
 
 from . import utils
-from .settings import DelaySettings
-from .media_handler import MediaHandler
 from .html_generator import HtmlGenerator
+from .media_handler import MediaHandler
+from .settings import DelaySettings
+
+db_proxy = Proxy()
+
+class MessageModel(Model):
+    date = DateTimeField()
+    sender = TextField(null=True)
+    text = TextField(null=True)
+    reply_to = TextField(null=True)
+    forwarded_from = TextField(null=True)
+    media_path = TextField(null=True)
+    media_type = TextField(null=True)
+    media_placeholder = TextField(null=True)
+    action_text = TextField(null=True)
+
+    class Meta:
+        database = db_proxy
 
 
 class ChatExporter:
@@ -23,27 +41,14 @@ class ChatExporter:
         self.export_folder = None
         self.media_folder = None
         self.db_path = None
-        self.db_conn = None
+        self.db = None
 
     def _init_db(self):
         self.db_path = self.export_folder / f"temp_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
-        self.db_conn = sqlite3.connect(self.db_path)
-        cursor = self.db_conn.cursor()
-        cursor.execute('''
-            CREATE TABLE messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date TEXT NOT NULL,
-                sender TEXT,
-                text TEXT,
-                reply_to TEXT,
-                forwarded_from TEXT,
-                media_path TEXT,
-                media_type TEXT,
-                media_placeholder TEXT,
-                action_text TEXT
-            )
-        ''')
-        self.db_conn.commit()
+        self.db = SqliteDatabase(self.db_path)
+        db_proxy.initialize(self.db)
+        self.db.connect()
+        self.db.create_tables([MessageModel])
 
     async def export_chat(self, entity, download_media: bool, max_file_size: Optional[int] = None):
         chat_name = self._get_entity_name(entity)
@@ -70,10 +75,14 @@ class ChatExporter:
                 media_count = sum(1 for f in self.export_folder.rglob('*') if f.is_file())
                 print(f"🖼️ Media files: {media_count - 1}")
             print("=" * 60)
-
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            import traceback
+            traceback.print_exc()
+            print("💡 Check if the ID/username is correct or if you have access to the chat.")
         finally:
-            if self.db_conn:
-                self.db_conn.close()
+            if self.db and not self.db.is_closed():
+                self.db.close()
             if self.db_path and self.db_path.exists():
                 try:
                     os.remove(self.db_path)
@@ -89,52 +98,62 @@ class ChatExporter:
         pbar = async_tqdm(total=total.total, desc="Exporting", unit=" msg", colour='cyan')
 
         message_count = 0
+        batch = []
+        BATCH_SIZE = 200
+
         async for msg in self.client.iter_messages(entity):
             if not msg: continue
 
             data_dict = await self._process_message_for_db(msg, media_handler, pbar)
+            batch.append({
+                'date': msg.date,
+                'sender': data_dict.get('from'),
+                'text': data_dict.get('text'),
+                'reply_to': json.dumps(data_dict.get('reply_to')),
+                'forwarded_from': json.dumps(data_dict.get('forwarded')),
+                'media_path': data_dict.get('media_path'),
+                'media_type': data_dict.get('media_type'),
+                'media_placeholder': data_dict.get('media_placeholder'),
+                'action_text': data_dict.get('action_text')
+            })
 
-            cursor = self.db_conn.cursor()
-            cursor.execute('''
-                INSERT INTO messages (date, sender, text, reply_to, forwarded_from, media_path, media_type, media_placeholder, action_text)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                msg.date.isoformat(),
-                data_dict.get('from'),
-                data_dict.get('text'),
-                json.dumps(data_dict.get('reply_to')),
-                json.dumps(data_dict.get('forwarded')),
-                data_dict.get('media_path'),
-                data_dict.get('media_type'),
-                data_dict.get('media_placeholder'),
-                data_dict.get('action_text')
-            ))
+            if len(batch) >= BATCH_SIZE:
+                MessageModel.insert_many(batch).execute()
+                batch.clear()
+
             message_count += 1
             pbar.update(1)
             await asyncio.sleep(self.delay_settings.delay_between_messages)
 
-        self.db_conn.commit()
+        if batch:
+            MessageModel.insert_many(batch).execute()
+            batch.clear()
+
         pbar.close()
         print(f"\n✅ All {message_count} messages saved to database.")
         return message_count
 
     def _html_generation_pass(self, chat_name: str, total_messages: int):
         print(f"\n📄 Generating HTML from database...")
-        cursor = self.db_conn.cursor()
-        cursor.execute("SELECT * FROM messages ORDER BY date ASC")
 
         processed_messages = []
-        for row in cursor.fetchall():
+        query = MessageModel.select().order_by(MessageModel.date.asc())
+
+        for msg_record in query:
+            msg_date = msg_record.date
+            if isinstance(msg_date, str):
+                msg_date = datetime.fromisoformat(msg_date)
+
             processed_messages.append({
-                'date': datetime.fromisoformat(row[1]),
-                'from': row[2],
-                'text': row[3],
-                'reply_to': json.loads(row[4]) if row[4] else None,
-                'forwarded': json.loads(row[5]) if row[5] else None,
-                'media': row[6],
-                'media_type': row[7],
-                'media_placeholder': row[8],
-                'action_text': row[9]
+                'date': msg_date,
+                'from': msg_record.sender,
+                'text': msg_record.text,
+                'reply_to': json.loads(msg_record.reply_to) if msg_record.reply_to else None,
+                'forwarded': json.loads(msg_record.forwarded_from) if msg_record.forwarded_from else None,
+                'media': msg_record.media_path,
+                'media_type': msg_record.media_type,
+                'media_placeholder': msg_record.media_placeholder,
+                'action_text': msg_record.action_text
             })
 
         generator = HtmlGenerator(chat_name, processed_messages)
