@@ -1,18 +1,34 @@
 import asyncio
 from pathlib import Path
 from typing import Optional, Tuple
-from telethon.tl.types import Message, MessageMediaWebPage
+from telethon.tl.types import Message, MessageMediaWebPage, PhotoSize
 from telethon.errors import FloodWaitError, TimeoutError as TelegramTimeoutError
 from . import utils
 from .settings import DelaySettings
 
 
 class MediaHandler:
-    def __init__(self, media_folder: Path, delay_settings: DelaySettings):
+    def __init__(self, media_folder: Path, delay_settings: DelaySettings, max_file_size_mb: Optional[int] = None):
         self.media_folder = media_folder
         self.delay_settings = delay_settings
+        self.max_file_size_bytes = max_file_size_mb * 1024 * 1024 if max_file_size_mb is not None else None
 
     async def download(self, msg: Message, pbar=None) -> Optional[Tuple[str, str]]:
+        if self.max_file_size_bytes is not None:
+            file_size = 0
+            if getattr(msg, 'document', None) and getattr(msg.document, 'size', None):
+                file_size = msg.document.size
+            elif getattr(msg, 'photo', None) and getattr(msg.photo, 'sizes', None):
+                photo_sizes = [s.size for s in msg.photo.sizes if isinstance(s, PhotoSize) and s.size is not None]
+                if photo_sizes:
+                    file_size = max(photo_sizes)
+
+            if file_size > self.max_file_size_bytes:
+                if pbar:
+                    pbar.set_postfix_str(f"file > {self.max_file_size_bytes / (1024*1024):.0f}MB, skipping...")
+                await asyncio.sleep(0.05)
+                return None
+
         for attempt in range(self.delay_settings.max_retries):
             try:
                 media_type, ext, suggested_name = "document", "bin", None

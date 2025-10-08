@@ -219,12 +219,24 @@ class AppUI:
         name = self._get_formatted_name_for_ui(entity)
         print(f"\n{'=' * 60}\n📥 EXPORT: {name}\n{'=' * 60}")
         download_media = input("\n📥 Download media files? [Y/n]: ").strip().lower() != 'n'
+        max_file_size = None
+
+        if download_media:
+            try:
+                max_size_mb_str = input("Enter max file size in MB (leave empty for no limit): ").strip()
+                if max_size_mb_str:
+                    max_file_size = int(max_size_mb_str)
+            except ValueError:
+                print("❌ Invalid input! No size limit will be applied.")
+                max_file_size = None
 
         print(f"\n✅ READY TO EXPORT:\n   Chat: {name}\n   Media: {'yes' if download_media else 'no'}")
+        if download_media and max_file_size is not None:
+            print(f"   Max file size: {max_file_size} MB")
         confirm = input("\n▶️ Start export? [Y/n]: ").strip().lower()
 
         if confirm != 'n':
             exporter = ChatExporter(self.client, self.delay_settings)
-            await exporter.export_chat(entity, download_media)
+            await exporter.export_chat(entity, download_media, max_file_size)
         else:
             print("❌ Export cancelled. Returning to main menu.")

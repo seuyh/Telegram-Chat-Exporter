@@ -45,7 +45,7 @@ class ChatExporter:
         ''')
         self.db_conn.commit()
 
-    async def export_chat(self, entity, download_media: bool):
+    async def export_chat(self, entity, download_media: bool, max_file_size: Optional[int] = None):
         chat_name = self._get_entity_name(entity)
         safe_name = utils.sanitize_filename(chat_name)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -61,7 +61,7 @@ class ChatExporter:
             print(
                 f"\n{'=' * 60}\n📥 EXPORT STARTED\n📁 Folder: {self.export_folder}\n{'=' * 60}")
 
-            total_messages = await self._data_ingestion_pass(entity, download_media)
+            total_messages = await self._data_ingestion_pass(entity, download_media, max_file_size)
             self._html_generation_pass(chat_name, total_messages)
 
             print(
@@ -81,9 +81,9 @@ class ChatExporter:
                     print(f"\n⚠️ Warning: Could not delete temporary database '{self.db_path}'.")
                     print(f"   Reason: {e}. You can safely delete this file manually.")
 
-    async def _data_ingestion_pass(self, entity, download_media: bool) -> int:
+    async def _data_ingestion_pass(self, entity, download_media: bool, max_file_size: Optional[int]) -> int:
         print("\n⏳ Loading messages and media into database...")
-        media_handler = MediaHandler(self.media_folder, self.delay_settings) if download_media else None
+        media_handler = MediaHandler(self.media_folder, self.delay_settings, max_file_size) if download_media else None
 
         total = await self.client.get_messages(entity, limit=0)
         pbar = async_tqdm(total=total.total, desc="Exporting", unit=" msg", colour='cyan')
@@ -153,6 +153,8 @@ class ChatExporter:
                 result = await media_handler.download(msg, pbar)
                 if result:
                     data['media_path'], data['media_type'] = result
+                else:
+                    data['media_placeholder'] = self._get_media_placeholder(msg)
             else:
                 data['media_placeholder'] = self._get_media_placeholder(msg)
 

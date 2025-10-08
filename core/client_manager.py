@@ -26,7 +26,7 @@ class ClientManager:
                 return
 
             session_path = str(self.sessions_folder / session_name)
-            client = TelegramClient(session_path, int(api_id), api_hash, system_version='4.16.30-vxCUSTOM')
+            client = TelegramClient(session_path, int(api_id), api_hash, system_version='4.16.30-vxEXPORTER')
 
             print("\n📱 Connecting...")
             await client.connect()
