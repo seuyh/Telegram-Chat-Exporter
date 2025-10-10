@@ -1,9 +1,11 @@
-from typing import List
+from typing import List, Optional
 from telethon.tl.types import User, Chat, Channel
 from .client_manager import ClientManager
 from .settings import DelaySettings
 from .exporter import ChatExporter
+from .merger import Merger
 from datetime import datetime
+from pathlib import Path
 
 
 class AppUI:
@@ -28,6 +30,8 @@ class AppUI:
                 break
             elif action == 'create':
                 await self.client_manager.create_new_session()
+            elif action == 'merge':
+                await self.run_merger()
             elif action:
                 session_name = action
                 self.client = await self.client_manager.get_client(session_name)
@@ -47,16 +51,19 @@ class AppUI:
 
         print("-" * 20)
         print(f"   a. ➕ Add new session")
+        print(f"   u. 🖇️ Unite two exports")
         print(f"   e. 🚪 Exit")
 
         while True:
-            prompt = f"Choose action ({'1-' + str(len(session_files)) + ', ' if session_files else ''}a, e): "
+            options = "a, u, e"
+            if session_files:
+                options = f"1-{len(session_files)}, " + options
+            prompt = f"Choose action ({options}): "
             choice = input(f"\n{prompt}").strip().lower()
 
-            if choice == 'a':
-                return 'create'
-            if choice == 'e':
-                return 'exit'
+            if choice == 'a': return 'create'
+            if choice == 'u': return 'merge'
+            if choice == 'e': return 'exit'
 
             try:
                 choice_num = int(choice)
@@ -65,7 +72,7 @@ class AppUI:
                 else:
                     print(f"❌ Enter a number from 1 to {len(session_files)}")
             except (ValueError, IndexError):
-                print("❌ Please enter a valid number or letter (a, e).")
+                print(f"❌ Please enter a valid choice.")
 
     async def main_menu(self):
         while True:
@@ -221,6 +228,7 @@ class AppUI:
         print(f"\n{'=' * 60}\n📥 EXPORT: {name}\n{'=' * 60}")
         download_media = input("\n📥 Download media files? [Y/n]: ").strip().lower() != 'n'
         max_file_size = None
+        append_folder_path = None
 
         if download_media:
             while True:
@@ -240,11 +248,27 @@ class AppUI:
         while True:
             try:
                 start_date_str = input(
-                    "\nEnter start date (YYYY-MM-DD HH:MM, UTC) (optional, press Enter to skip): ").strip()
-                if start_date_str:
-                    start_date = datetime.strptime(start_date_str, '%Y-%m-%d %H:%M')
-                else:
+                    "\nEnter start date (YYYY-MM-DD HH:MM, UTC) or [a] to append to existing export (optional, press Enter to skip): ").strip().lower()
+
+                if not start_date_str:
                     start_date = None
+                elif start_date_str == 'a':
+                    append_folder_path = await self._select_export_folder("Select an export to append to")
+                    if append_folder_path:
+                        print(f"\n⏳ Analyzing '{append_folder_path.name}' to find the last message date...")
+                        last_date = Merger.get_last_message_date(append_folder_path)
+                        if last_date:
+                            start_date = last_date
+                            print(
+                                f"✅ Start date set to {start_date.strftime('%Y-%m-%d %H:%M')} UTC from the last message.")
+                        else:
+                            print(f"❌ Could not find any messages in '{append_folder_path.name}'. Append cancelled.")
+                            append_folder_path = None
+                    else:
+                        print("Append cancelled.")
+                        continue
+                else:
+                    start_date = datetime.strptime(start_date_str, '%Y-%m-%d %H:%M')
 
                 end_date_str = input("Enter end date (YYYY-MM-DD HH:MM, UTC) (optional, press Enter to skip): ").strip()
                 if end_date_str:
@@ -254,6 +278,9 @@ class AppUI:
                 break
             except ValueError:
                 print("❌ Invalid date format! Please use YYYY-MM-DD HH:MM.")
+            except ImportError:
+                print("\n❌ Error: Missing required libraries for this feature.")
+                print("   Please install them by running: pip install beautifulsoup4 lxml")
 
         print(f"\n✅ READY TO EXPORT:\n   Chat: {name}\n   Media: {'yes' if download_media else 'no'}")
         if download_media and max_file_size is not None:
@@ -262,11 +289,113 @@ class AppUI:
             print(f"   From date: {start_date.strftime('%Y-%m-%d %H:%M')} UTC")
         if end_date:
             print(f"   To date:   {end_date.strftime('%Y-%m-%d %H:%M')} UTC")
+        if append_folder_path:
+            print(f"   Mode:      Append to '{append_folder_path.name}'")
 
         confirm = input("\n▶️ Start export? [Y/n]: ").strip().lower()
 
         if confirm != 'n':
             exporter = ChatExporter(self.client, self.delay_settings)
             await exporter.export_chat(entity, download_media, max_file_size, start_date, end_date)
+
+            if append_folder_path and exporter.export_folder:
+                print("\n" + "=" * 60)
+                print("🖇️ APPEND MODE: Automatically merging new export...")
+                print(f"   Original: {append_folder_path.name}")
+                print(f"   New data: {exporter.export_folder.name}")
+                print("=" * 60)
+                try:
+                    merger = Merger(str(append_folder_path), str(exporter.export_folder))
+                    merger.merge()
+                except Exception as e:
+                    print(f"\n❌ An unexpected error occurred during auto-merge: {e}")
         else:
             print("❌ Export cancelled. Returning to main menu.")
+
+    async def _select_export_folder(self, prompt: str, exclude: Path = None) -> Path | None:
+        print(f"\n{'=' * 60}\n{prompt}\n")
+        exports_dir = Path("exports")
+        valid_exports = []
+
+        if exports_dir.is_dir():
+            valid_exports = sorted([
+                d for d in exports_dir.iterdir()
+                if d.is_dir() and (d / "messages.html").is_file()
+            ])
+
+        if valid_exports:
+            for i, folder in enumerate(valid_exports, 1):
+                if folder == exclude:
+                    print(f"   {i}. 📁 {folder.name} [selected]")
+                else:
+                    print(f"   {i}. 📁 {folder.name}")
+            print("-" * 20)
+        else:
+            print("   No exports found in the 'exports' directory.")
+
+        print("   [c] - Enter a custom path")
+        print("   [b] - Back")
+
+        while True:
+            choice = input("\nChoose an option: ").strip().lower()
+            if choice == 'b': return None
+            if choice == 'c':
+                return await self._prompt_for_custom_path_loop(exclude=exclude)
+
+            try:
+                num = int(choice)
+                if 1 <= num <= len(valid_exports):
+                    selected = valid_exports[num - 1]
+                    if selected == exclude:
+                        print("❌ This folder is already selected. Please choose a different one.")
+                        continue
+                    return selected
+                else:
+                    print(f"❌ Please enter a number between 1 and {len(valid_exports)}.")
+            except (ValueError, IndexError):
+                print("❌ Invalid input. Please enter a number or a letter from the options.")
+
+    async def _prompt_for_custom_path_loop(self, exclude: Path = None) -> Path | None:
+        while True:
+            path_str = input("\nEnter the full path to an export folder (or press Enter to go back): ").strip()
+            if not path_str: return None
+
+            path = Path(path_str)
+            if path == exclude:
+                print("❌ This folder is already selected. Please choose a different one.")
+                continue
+
+            if path.is_dir() and (path / "messages.html").is_file():
+                return path
+            else:
+                print("❌ Path is not a valid export folder (must contain messages.html).")
+
+    async def run_merger(self):
+        print("\n" + "=" * 60)
+        print("🖇️ UNITE TWO EXPORTS")
+        print("=" * 60)
+
+        folder1 = await self._select_export_folder("Select the FIRST export folder to merge")
+        if not folder1:
+            print("Operation cancelled.")
+            return
+
+        folder2 = await self._select_export_folder("Select the SECOND export folder to merge", exclude=folder1)
+        if not folder2:
+            print("Operation cancelled.")
+            return
+
+        print(f"\n✅ Folders selected for merging:\n   1: {folder1.name}\n   2: {folder2.name}")
+        confirm = input("\n▶️ Start merge? [Y/n]: ").strip().lower()
+        if confirm == 'n':
+            print("❌ Merge cancelled.")
+            return
+
+        try:
+            merger = Merger(str(folder1), str(folder2))
+            merger.merge()
+        except ImportError:
+            print("\n❌ Error: Missing required libraries for merging.")
+            print("   Please install them by running: pip install beautifulsoup4 lxml")
+        except Exception as e:
+            print(f"\n❌ An unexpected error occurred: {e}")

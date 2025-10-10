@@ -1,3 +1,5 @@
 telethon==1.33.1
 tqdm==4.66.4
 peewee==3.17.1
+beautifulsoup4==4.12.3
+lxml==5.2.2
