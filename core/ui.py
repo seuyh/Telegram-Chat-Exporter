@@ -3,6 +3,7 @@ from telethon.tl.types import User, Chat, Channel
 from .client_manager import ClientManager
 from .settings import DelaySettings
 from .exporter import ChatExporter
+from datetime import datetime
 
 
 class AppUI:
@@ -224,7 +225,8 @@ class AppUI:
         if download_media:
             while True:
                 try:
-                    max_size_mb_str = input("Enter max file size in MB (leave empty for no limit): ").strip().replace(',', '.')
+                    max_size_mb_str = input("Enter max file size in MB (leave empty for no limit): ").strip().replace(
+                        ',', '.')
                     if max_size_mb_str:
                         max_file_size = float(max_size_mb_str)
                         break
@@ -234,13 +236,37 @@ class AppUI:
                 except ValueError:
                     print("❌ Invalid input! Please enter a number (e.g., 50, 2.5, 0.5) or leave empty.")
 
+        start_date, end_date = None, None
+        while True:
+            try:
+                start_date_str = input(
+                    "\nEnter start date (YYYY-MM-DD HH:MM, UTC) (optional, press Enter to skip): ").strip()
+                if start_date_str:
+                    start_date = datetime.strptime(start_date_str, '%Y-%m-%d %H:%M')
+                else:
+                    start_date = None
+
+                end_date_str = input("Enter end date (YYYY-MM-DD HH:MM, UTC) (optional, press Enter to skip): ").strip()
+                if end_date_str:
+                    end_date = datetime.strptime(end_date_str, '%Y-%m-%d %H:%M')
+                else:
+                    end_date = None
+                break
+            except ValueError:
+                print("❌ Invalid date format! Please use YYYY-MM-DD HH:MM.")
+
         print(f"\n✅ READY TO EXPORT:\n   Chat: {name}\n   Media: {'yes' if download_media else 'no'}")
         if download_media and max_file_size is not None:
             print(f"   Max file size: {max_file_size} MB")
+        if start_date:
+            print(f"   From date: {start_date.strftime('%Y-%m-%d %H:%M')} UTC")
+        if end_date:
+            print(f"   To date:   {end_date.strftime('%Y-%m-%d %H:%M')} UTC")
+
         confirm = input("\n▶️ Start export? [Y/n]: ").strip().lower()
 
         if confirm != 'n':
             exporter = ChatExporter(self.client, self.delay_settings)
-            await exporter.export_chat(entity, download_media, max_file_size)
+            await exporter.export_chat(entity, download_media, max_file_size, start_date, end_date)
         else:
             print("❌ Export cancelled. Returning to main menu.")

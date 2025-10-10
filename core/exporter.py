@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -53,7 +53,8 @@ class ChatExporter:
         self.db.connect()
         self.db.create_tables([MessageModel])
 
-    async def export_chat(self, entity, download_media: bool, max_file_size: Optional[float] = None):
+    async def export_chat(self, entity, download_media: bool, max_file_size: Optional[float] = None,
+                          start_date: Optional[datetime] = None, end_date: Optional[datetime] = None):
         chat_name = self._get_entity_name(entity)
         safe_name = utils.sanitize_filename(chat_name)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -66,11 +67,29 @@ class ChatExporter:
 
         try:
             self._init_db()
-            print(
-                f"\n{'=' * 60}\n📥 EXPORT STARTED\n📁 Folder: {self.export_folder}\n{'=' * 60}")
 
-            total_messages = await self._data_ingestion_pass(entity, download_media, max_file_size)
-            self._html_generation_pass(chat_name, total_messages)
+            from_str = start_date.strftime('%Y-%m-%d %H:%M') + " UTC" if start_date else "start of chat"
+            to_str = end_date.strftime('%Y-%m-%d %H:%M') + " UTC" if end_date else "end of chat"
+
+            print(f"\n{'=' * 60}")
+            print("📥 EXPORT STARTED")
+            print(f"{'=' * 60}")
+            print(f" 💬 Chat:          {chat_name}")
+            print(f" 📁 Folder:        {self.export_folder.absolute()}")
+            print(f" 🗓️ Date range:    {from_str} -> {to_str}")
+            print(f" 🖼️ Media:         {'Yes' if download_media else 'No'}")
+            if download_media:
+                max_size_str = f"{max_file_size} MB" if max_file_size else "No limit"
+                print(f" 📦 Max file size: {max_size_str}")
+            print(f"\n ⚙️ Delays:")
+            print(f"    - Messages:    {self.delay_settings.delay_between_messages}s")
+            print(f"    - Media:       {self.delay_settings.delay_between_media}s")
+            print(f"    - Retries:     {self.delay_settings.max_retries} (delay: {self.delay_settings.retry_delay}s)")
+            print(f"{'=' * 60}")
+
+            total_messages = await self._data_ingestion_pass(entity, download_media, max_file_size, start_date,
+                                                             end_date)
+            self._html_generation_pass(chat_name, total_messages, start_date, end_date)
 
             print(
                 f"\n{'=' * 60}\n✨ EXPORT COMPLETED!\n📄 File: {(self.export_folder / 'messages.html').absolute()}\n📊 Messages: {total_messages}")
@@ -93,20 +112,46 @@ class ChatExporter:
                     print(f"\n⚠️ Warning: Could not delete temporary database '{self.db_path}'.")
                     print(f"   Reason: {e}. You can safely delete this file manually.")
 
-    async def _data_ingestion_pass(self, entity, download_media: bool, max_file_size: Optional[float]) -> int:
+    async def _data_ingestion_pass(self, entity, download_media: bool, max_file_size: Optional[float],
+                                   start_date: Optional[datetime], end_date: Optional[datetime]) -> int:
         print("\n⏳ Loading messages and media into database...")
         media_handler = MediaHandler(self.media_folder, self.delay_settings,
                                      max_file_size) if download_media else None
 
-        total = await self.client.get_messages(entity, limit=0)
-        pbar = async_tqdm(total=total.total, desc="Exporting", unit=" msg", colour='cyan')
+        start_date_aware = start_date.replace(tzinfo=timezone.utc) if start_date else None
+        end_date_aware = end_date.replace(tzinfo=timezone.utc) if end_date else None
+
+        total_messages_in_range = None
+        if start_date or end_date:
+            print("⏳ Counting messages in the selected date range...")
+            count = 0
+            async for msg in self.client.iter_messages(entity, offset_date=end_date_aware):
+                if start_date_aware and msg.date < start_date_aware:
+                    break
+                count += 1
+            total_messages_in_range = count
+            print(f"Found {total_messages_in_range} messages to export.")
+
+        pbar_args = {"unit": " msg", "colour": 'cyan'}
+        if total_messages_in_range is not None:
+            pbar_args['total'] = total_messages_in_range
+            pbar_args['desc'] = "Exporting (date range)"
+        else:
+            total = await self.client.get_messages(entity, limit=0)
+            pbar_args['total'] = total.total
+            pbar_args['desc'] = "Exporting"
+
+        pbar = async_tqdm(**pbar_args)
 
         message_count = 0
         batch = []
         BATCH_SIZE = 200
 
-        async for msg in self.client.iter_messages(entity):
+        async for msg in self.client.iter_messages(entity, offset_date=end_date_aware):
             if not msg: continue
+
+            if start_date_aware and msg.date < start_date_aware:
+                break
 
             data_dict = await self._process_message_for_db(msg, media_handler, pbar)
             batch.append({
@@ -135,11 +180,15 @@ class ChatExporter:
             MessageModel.insert_many(batch).execute()
             batch.clear()
 
+        if pbar.total and pbar.n < pbar.total:
+            pbar.update(pbar.total - pbar.n)
         pbar.close()
+
         print(f"\n✅ All {message_count} messages saved to database.")
         return message_count
 
-    def _html_generation_pass(self, chat_name: str, total_messages: int):
+    def _html_generation_pass(self, chat_name: str, total_messages: int, start_date: Optional[datetime],
+                              end_date: Optional[datetime]):
         print(f"\n📄 Generating HTML from database...")
 
         messages_map = {}
@@ -180,7 +229,7 @@ class ChatExporter:
             if msg.get('text') or msg.get('media_files') or msg.get('action_text') or msg.get('media_placeholder')
         ]
 
-        generator = HtmlGenerator(chat_name, processed_messages)
+        generator = HtmlGenerator(chat_name, processed_messages, start_date, end_date)
         html_content = generator.generate()
         html_file = self.export_folder / "messages.html"
         html_file.write_text(html_content, encoding='utf-8')

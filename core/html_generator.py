@@ -1,11 +1,14 @@
 from datetime import datetime
+from typing import Optional
 from . import utils
 
 
 class HtmlGenerator:
-    def __init__(self, chat_name: str, messages: list):
+    def __init__(self, chat_name: str, messages: list, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None):
         self.chat_name = chat_name
         self.messages = messages
+        self.start_date = start_date
+        self.end_date = end_date
 
     def generate(self) -> str:
         grouped_messages = {}
@@ -83,6 +86,17 @@ class HtmlGenerator:
         return html
 
     def _get_html_template(self, messages_html: str) -> str:
+        date_range_html = ""
+        if self.start_date or self.end_date:
+            if self.messages:
+                actual_start_date = self.messages[0]['date']
+                actual_end_date = self.messages[-1]['date']
+                from_str = actual_start_date.strftime('%d.%m.%Y %H:%M')
+                to_str = actual_end_date.strftime('%d.%m.%Y %H:%M')
+                date_range_html = f'<div class="info" style="font-size: 13px; color: #aab5c3; margin-top: 5px;">Export Range: {from_str} — {to_str} (UTC)</div>'
+            else:
+                date_range_html = f'<div class="info" style="font-size: 13px; color: #aab5c3; margin-top: 5px;">No messages found in the selected range</div>'
+
         return f'''<!DOCTYPE html>
     <html lang="en">
     <head>
@@ -184,6 +198,7 @@ class HtmlGenerator:
             <div class="header">
                 <h1>{utils.escape_html(self.chat_name)}</h1>
                 <div class="info">Exported: {datetime.now().strftime("%d.%m.%Y %H:%M")} | Messages: {len(self.messages)}</div>
+                {date_range_html}
                 <div class="scale-slider-container">
                     <span style="font-size: 12px;">-</span>
                     <input type="range" id="scaleSlider" min="50" max="150" value="100">
