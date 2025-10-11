@@ -25,8 +25,8 @@ A powerful and sophisticated console-based tool to export your Telegram chat his
 
 This is an unofficial tool and is not affiliated with Telegram. Using the Telegram API for automation always carries some risk.
 
-* **API Rate Limits**: Sending too many requests in a short period can result in temporary limitations from Telegram (FloodWaitError). This tool is designed to handle these errors gracefully, but aggressive use is discouraged. Please note that export speed is often dictated by these API limits, not by the performance of the script or your computer.
-* **Account Suspension**: While highly unlikely with normal use, excessive or abusive behavior could potentially lead to the suspension of your Telegram account.
+* **API Rate Limits**: Sending too many requests in a short period can result in temporary limitations from Telegram (FloodWaitError). This tool is designed to handle these errors gracefully, but very frequent use is discouraged. Please note that export speed is often dictated by these API limits and your internet connection speed, not just by the performance of the script or your computer.
+* **Account Suspension**: While highly unlikely with normal use, excessive or aggressive usage could potentially lead to the suspension of your Telegram account.
 * **Recommendation**: For your primary or important accounts, it is **strongly recommended** to use the **"Safe"** or **"Balanced"** delay settings within the tool to minimize risks.
 
 The developers of this tool are not responsible for any consequences resulting from its use. **Use it at your own risk.**
@@ -41,21 +41,24 @@ The project is organized into a modular structure for clarity and maintainabilit
 
 telegram-chat-exporter/
 │
-├── core/                 \# Core application logic package
-│   ├── client\_manager.py \# Manages Telethon client and sessions
-│   ├── exporter.py       \# Handles the main export logic (API -\> SQLite -\> HTML)
-│   ├── html\_generator.py \# Generates the final HTML report with the media viewer
-│   ├── media\_handler.py  \# Manages media file downloads
-│   ├── settings.py       \# Manages configurable delay settings
-│   ├── ui.py             \# Handles all command-line user interactions (menus, prompts)
-│   └── utils.py          \# Helper utility functions
+├── core/                 # Core application logic
+│   ├── client_manager.py # Manages Telethon sessions
+│   ├── exporter.py       # Main export logic
+│   ├── html_generator.py # Generates the final HTML
+│   ├── media_handler.py  # Handles media downloads
+│   ├── merger.py         # Merges two exports
+│   ├── settings.py       # Manages delay settings
+│   ├── ui.py             # Command-line user interface
+│   └── utils.py          # Utility functions
 │
-│── sessions/             \# Directory with your Telethon sessions
-│   └── your_account.session \# Session file
+├── exports/              # Created automatically to store your exports
 │
-├── main.py               \# Main entry point of the application
-├── requirements.txt      \# Python dependencies
-└── README.md             \# This file
+├── sessions/             # Stores your *.session files
+│
+├── main.py               # Main entry point
+├── requirements.txt      # Dependencies
+├── README.md             # This file
+└── settings.json         # Created automatically when you change settings
 
 ````
 
@@ -67,6 +70,7 @@ telegram-chat-exporter/
 
 * **Python 3.8+**
 * **Telegram API Credentials** (`API ID` and `API Hash`): You must obtain these from [my.telegram.org](https://my.telegram.org).
+* **Required libraries** listed in `requirements.txt`.
 
 ### Installation & Setup
 
